@@ -3,10 +3,11 @@ package com.github.takezoe.akka.stream.elasticsearch.javadsl
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.elasticsearch.client.RestClient
+import org.elasticsearch.client.{RestClient, RestHighLevelClient}
 import com.github.takezoe.akka.stream.elasticsearch._
+
 import scala.collection.JavaConverters._
-import java.util.{Map => JavaMap, List => JavaList}
+import java.util.{List => JavaList, Map => JavaMap}
 
 object ElasticsearchFlow {
 
@@ -17,7 +18,7 @@ object ElasticsearchFlow {
       indexName: String,
       typeName: String,
       settings: ElasticsearchSinkSettings,
-      client: RestClient
+      client: RestHighLevelClient
   ): akka.stream.javadsl.Flow[IncomingMessage[JavaMap[String, Object]], JavaList[
     IncomingMessage[JavaMap[String, Object]]
   ], NotUsed] =
@@ -42,7 +43,7 @@ object ElasticsearchFlow {
       indexName: String,
       typeName: String,
       settings: ElasticsearchSinkSettings,
-      client: RestClient
+      client: RestHighLevelClient
   ): akka.stream.javadsl.Flow[IncomingMessage[T], JavaList[IncomingMessage[T]], NotUsed] =
     Flow
       .fromGraph(

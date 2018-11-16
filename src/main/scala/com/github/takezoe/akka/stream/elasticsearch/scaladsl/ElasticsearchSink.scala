@@ -2,9 +2,9 @@ package com.github.takezoe.akka.stream.elasticsearch.scaladsl
 
 import akka.Done
 import akka.stream.scaladsl.{Keep, Sink}
-import org.elasticsearch.client.RestClient
-import spray.json.{JsObject, JsonWriter}
 import com.github.takezoe.akka.stream.elasticsearch._
+import org.elasticsearch.client.RestHighLevelClient
+import spray.json.{JsObject, JsonWriter}
 
 import scala.concurrent.Future
 
@@ -14,7 +14,7 @@ object ElasticsearchSink {
    * Scala API: creates a sink based on [[ElasticsearchFlowStage]] that accepts as JsObject
    */
   def apply(indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
-      implicit client: RestClient
+      implicit client: RestHighLevelClient
   ): Sink[IncomingMessage[JsObject], Future[Done]] =
     ElasticsearchFlow.apply(indexName, typeName, settings).toMat(Sink.ignore)(Keep.right)
 
@@ -22,7 +22,7 @@ object ElasticsearchSink {
    * Scala API: creates a sink based on [[ElasticsearchFlowStage]] that accepts as specific type
    */
   def typed[T](indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
-      implicit client: RestClient,
+      implicit client: RestHighLevelClient,
       writer: JsonWriter[T]
   ): Sink[IncomingMessage[T], Future[Done]] =
     ElasticsearchFlow.typed[T](indexName, typeName, settings).toMat(Sink.ignore)(Keep.right)

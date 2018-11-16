@@ -1,21 +1,19 @@
 package com.github.takezoe.akka.stream.elasticsearch
 
-import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
+import akka.NotUsed
 import akka.stream.stage._
-import org.apache.http.entity.StringEntity
-import org.elasticsearch.client.{Response, ResponseListener, RestClient}
+import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
+import com.github.takezoe.akka.stream.elasticsearch.ElasticsearchFlowStage._
+import com.github.takezoe.akka.stream.elasticsearch.scaladsl.ElasticsearchSinkSettings
+import org.elasticsearch.action.ActionListener
+import org.elasticsearch.action.bulk.{BulkRequest, BulkResponse}
+import org.elasticsearch.action.index.IndexRequest
+import org.elasticsearch.client.RestHighLevelClient
+import org.elasticsearch.common.xcontent.XContentType
 
 import scala.collection.mutable
-import scala.collection.JavaConverters._
-import spray.json._
-
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import ElasticsearchFlowStage._
-import akka.NotUsed
-import com.github.takezoe.akka.stream.elasticsearch.scaladsl.ElasticsearchSinkSettings
-import org.apache.http.message.BasicHeader
-import org.apache.http.util.EntityUtils
 
 final case class IncomingMessage[T](id: Option[String], source: T)
 
@@ -26,7 +24,7 @@ trait MessageWriter[T] {
 class ElasticsearchFlowStage[T, R](
     indexName: String,
     typeName: String,
-    client: RestClient,
+    client: RestHighLevelClient,
     settings: ElasticsearchSinkSettings,
     pusher: Seq[IncomingMessage[T]] => R,
     writer: MessageWriter[T]
@@ -42,7 +40,7 @@ class ElasticsearchFlowStage[T, R](
       private var state: State = Idle
       private val queue = new mutable.Queue[IncomingMessage[T]]()
       private val failureHandler = getAsyncCallback[(Seq[IncomingMessage[T]], Throwable)](handleFailure)
-      private val responseHandler = getAsyncCallback[(Seq[IncomingMessage[T]], Response)](handleResponse)
+      private val responseHandler = getAsyncCallback[(Seq[IncomingMessage[T]], BulkResponse)](handleResponse)
       private var failedMessages: Seq[IncomingMessage[T]] = Nil
       private var retryCount: Int = 0
 
@@ -73,17 +71,13 @@ class ElasticsearchFlowStage[T, R](
       private def handleSuccess(): Unit =
         completeStage()
 
-      private def handleResponse(args: (Seq[IncomingMessage[T]], Response)): Unit = {
+      private def handleResponse(args: (Seq[IncomingMessage[T]], BulkResponse)): Unit = {
         val (messages, response) = args
-        val responseJson = EntityUtils.toString(response.getEntity).parseJson
 
-        // If some commands in bulk request failed, pass failed messages to follows.
-        val items = responseJson.asJsObject.fields("items").asInstanceOf[JsArray]
-        val failed = items.elements.zip(messages).flatMap {
+        val failed = response.getItems.zip(messages).flatMap {
           case (item, message) =>
-            item.asJsObject.fields("index").asJsObject.fields.get("error").map { _ =>
-              message
-            }
+            if (item.getFailureMessage != null) Some(message)
+            else None
         }
 
         if (failed.nonEmpty && settings.retryPartialFailure) {
@@ -114,34 +108,23 @@ class ElasticsearchFlowStage[T, R](
       }
 
       private def sendBulkUpdateRequest(messages: Seq[IncomingMessage[T]]): Unit = {
-        val json = messages
-          .map { message =>
-            JsObject(
-              "index" -> JsObject(
-                Seq(
-                  Option("_index" -> JsString(indexName)),
-                  Option("_type" -> JsString(typeName)),
-                  message.id.map { id =>
-                    "_id" -> JsString(id)
-                  }
-                ).flatten: _*
-              )
-            ).toString + "\n" + writer.convert(message.source)
-          }
-          .mkString("", "\n", "\n")
+        val request = new BulkRequest()
 
-        client.performRequestAsync(
-          "POST",
-          "/_bulk",
-          Map[String, String]().asJava,
-          new StringEntity(json, "UTF-8"),
-          new ResponseListener() {
+        request.add(messages.map {
+          case IncomingMessage(Some(id), source) =>
+            new IndexRequest(indexName, typeName, id).source(writer.convert(source), XContentType.JSON)
+          case IncomingMessage(None, source) =>
+            new IndexRequest(indexName, typeName).source(writer.convert(source), XContentType.JSON)
+        }: _*)
+
+        client.bulkAsync(
+          request,
+          new ActionListener[BulkResponse] {
+            override def onResponse(response: BulkResponse): Unit =
+              responseHandler.invoke((messages, response))
             override def onFailure(exception: Exception): Unit =
               failureHandler.invoke((messages, exception))
-            override def onSuccess(response: Response): Unit =
-              responseHandler.invoke((messages, response))
-          },
-          new BasicHeader("Content-Type", "application/x-ndjson")
+          }
         )
       }
 

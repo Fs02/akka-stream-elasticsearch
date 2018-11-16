@@ -2,10 +2,9 @@ package com.github.takezoe.akka.stream.elasticsearch.scaladsl
 
 import akka.NotUsed
 import akka.stream.scaladsl.Source
+import com.github.takezoe.akka.stream.elasticsearch._
 import org.elasticsearch.client.RestClient
 import spray.json._
-import DefaultJsonProtocol._
-import com.github.takezoe.akka.stream.elasticsearch._
 
 object ElasticsearchSource {
 

@@ -4,7 +4,7 @@ import java.util.concurrent.CompletionStage
 
 import akka.stream.javadsl._
 import akka.{Done, NotUsed}
-import org.elasticsearch.client.RestClient
+import org.elasticsearch.client.{RestClient, RestHighLevelClient}
 import com.github.takezoe.akka.stream.elasticsearch._
 
 object ElasticsearchSink {
@@ -16,7 +16,7 @@ object ElasticsearchSink {
       indexName: String,
       typeName: String,
       settings: ElasticsearchSinkSettings,
-      client: RestClient
+      client: RestHighLevelClient
   ): akka.stream.javadsl.Sink[IncomingMessage[java.util.Map[String, Object]], CompletionStage[Done]] =
     ElasticsearchFlow
       .create(indexName, typeName, settings, client)
@@ -28,7 +28,7 @@ object ElasticsearchSink {
   def typed[T](indexName: String,
                typeName: String,
                settings: ElasticsearchSinkSettings,
-               client: RestClient): akka.stream.javadsl.Sink[IncomingMessage[T], CompletionStage[Done]] =
+               client: RestHighLevelClient): akka.stream.javadsl.Sink[IncomingMessage[T], CompletionStage[Done]] =
     ElasticsearchFlow
       .typed(indexName, typeName, settings, client)
       .toMat(Sink.ignore, Keep.right[NotUsed, CompletionStage[Done]])

@@ -2,9 +2,9 @@ package com.github.takezoe.akka.stream.elasticsearch.scaladsl
 
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
-import org.elasticsearch.client.{Response, RestClient}
-import spray.json._
 import com.github.takezoe.akka.stream.elasticsearch._
+import org.elasticsearch.client.RestHighLevelClient
+import spray.json._
 
 object ElasticsearchFlow {
 
@@ -12,7 +12,7 @@ object ElasticsearchFlow {
    * Scala API: creates a [[ElasticsearchFlowStage]] that accepts as JsObject
    */
   def apply(indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
-      implicit client: RestClient
+      implicit client: RestHighLevelClient
   ): Flow[IncomingMessage[JsObject], Seq[IncomingMessage[JsObject]], NotUsed] =
     Flow
       .fromGraph(
@@ -31,7 +31,7 @@ object ElasticsearchFlow {
    * Scala API: creates a [[ElasticsearchFlowStage]] that accepts specific type
    */
   def typed[T](indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
-      implicit client: RestClient,
+      implicit client: RestHighLevelClient,
       writer: JsonWriter[T]
   ): Flow[IncomingMessage[T], Seq[IncomingMessage[T]], NotUsed] =
     Flow

@@ -14,6 +14,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -28,7 +29,8 @@ import static org.junit.Assert.assertEquals;
 public class ElasticsearchTest {
 
   private static ElasticsearchClusterRunner runner;
-  private static RestClient client;
+  private static RestClient lclient;
+  private static RestHighLevelClient client;
   private static ActorSystem system;
   private static ActorMaterializer materializer;
 
@@ -48,7 +50,8 @@ public class ElasticsearchTest {
     runner.ensureYellow();
 
     //#init-client
-    client = RestClient.builder(new HttpHost("localhost", 9201)).build();
+    lclient = RestClient.builder(new HttpHost("localhost", 9201)).build();
+    client = new RestHighLevelClient(lclient);
     //#init-client
 
     //#init-mat
@@ -71,17 +74,17 @@ public class ElasticsearchTest {
   public static void teardown() throws Exception {
     runner.close();
     runner.clean();
-    client.close();
+    lclient.close();
     JavaTestKit.shutdownActorSystem(system);
   }
 
 
   private static void flush(String indexName) throws IOException {
-    client.performRequest("POST", indexName + "/_flush");
+    lclient.performRequest("POST", indexName + "/_flush");
   }
 
   private static void register(String indexName, String title) throws IOException {
-    client.performRequest("POST", indexName + "/book",
+    lclient.performRequest("POST", indexName + "/book",
       new HashMap<>(),
       new StringEntity(String.format("{\"title\": \"%s\"}", title)),
       new BasicHeader("Content-Type", "application/json")
@@ -98,7 +101,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      client)
+      lclient)
       .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
       .runWith(
         ElasticsearchSink.create(
@@ -119,7 +122,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      client)
+      lclient)
     .map(m -> (String) m.source().get("title"))
     .runWith(Sink.seq(), materializer);
 
@@ -148,7 +151,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      client,
+      lclient,
       Book.class)
       .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
       .runWith(
@@ -170,7 +173,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      client,
+      lclient,
       Book.class)
       .map(m -> m.source().title)
       .runWith(Sink.seq(), materializer);
@@ -200,7 +203,7 @@ public class ElasticsearchTest {
         "book",
         "{\"match_all\": {}}",
         new ElasticsearchSourceSettings().withBufferSize(5),
-        client,
+        lclient,
         Book.class)
         .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
         .via(ElasticsearchFlow.typed(
@@ -225,7 +228,7 @@ public class ElasticsearchTest {
         "book",
         "{\"match_all\": {}}",
         new ElasticsearchSourceSettings(5),
-        client,
+        lclient,
         Book.class)
         .map(m -> m.source().title)
         .runWith(Sink.seq(), materializer);

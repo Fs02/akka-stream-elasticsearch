@@ -10,7 +10,7 @@ import akka.testkit.TestKit
 import org.apache.http.HttpHost
 import org.apache.http.entity.StringEntity
 import org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner
-import org.elasticsearch.client.RestClient
+import org.elasticsearch.client.{RestClient, RestHighLevelClient}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import spray.json.DefaultJsonProtocol._
 import spray.json.{JsString, _}
@@ -30,7 +30,8 @@ class ElasticsearchSpec extends WordSpec with Matchers with BeforeAndAfterAll {
   implicit val materializer = ActorMaterializer()
   //#init-mat
   //#init-client
-  implicit val client = RestClient.builder(new HttpHost("localhost", 9201)).build()
+  implicit val lclient = RestClient.builder(new HttpHost("localhost", 9201)).build()
+  implicit val client = new RestHighLevelClient(lclient)
   //#init-client
 
   //#define-class
@@ -61,19 +62,19 @@ class ElasticsearchSpec extends WordSpec with Matchers with BeforeAndAfterAll {
   override def afterAll() = {
     runner.close()
     runner.clean()
-    client.close()
+    lclient.close()
     TestKit.shutdownActorSystem(system)
   }
 
   private def flush(indexName: String): Unit =
-    client.performRequest("POST", s"$indexName/_flush")
+    lclient.performRequest("POST", s"$indexName/_flush")
 
   private def register(indexName: String, title: String): Unit =
-    client.performRequest("POST",
-                          s"$indexName/book",
-                          Map[String, String]().asJava,
-                          new StringEntity(s"""{"title": "$title"}"""),
-                          new BasicHeader("Content-Type", "application/json"))
+    lclient.performRequest("POST",
+                           s"$indexName/book",
+                           Map[String, String]().asJava,
+                           new StringEntity(s"""{"title": "$title"}"""),
+                           new BasicHeader("Content-Type", "application/json"))
 
   "Elasticsearch connector" should {
     "consume and publish documents as JsObject" in {
