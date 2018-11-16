@@ -4,8 +4,8 @@ import java.util.concurrent.CompletionStage
 
 import akka.stream.javadsl._
 import akka.{Done, NotUsed}
-import org.elasticsearch.client.{RestClient, RestHighLevelClient}
 import com.github.takezoe.akka.stream.elasticsearch._
+import org.elasticsearch.client.RestHighLevelClient
 
 object ElasticsearchSink {
 

@@ -3,9 +3,8 @@ package com.github.takezoe.akka.stream.elasticsearch.javadsl
 import akka.NotUsed
 import akka.stream.javadsl.Source
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.elasticsearch.client.RestClient
 import com.github.takezoe.akka.stream.elasticsearch._
-import scala.collection.JavaConverters._
+import org.elasticsearch.client.RestHighLevelClient
 
 object ElasticsearchSource {
 
@@ -16,7 +15,7 @@ object ElasticsearchSource {
              typeName: String,
              query: String,
              settings: ElasticsearchSourceSettings,
-             client: RestClient): Source[OutgoingMessage[java.util.Map[String, Object]], NotUsed] =
+             client: RestHighLevelClient): Source[OutgoingMessage[java.util.Map[String, Object]], NotUsed] =
     Source.fromGraph(
       new ElasticsearchSourceStage(
         indexName,
@@ -35,7 +34,7 @@ object ElasticsearchSource {
                typeName: String,
                query: String,
                settings: ElasticsearchSourceSettings,
-               client: RestClient,
+               client: RestHighLevelClient,
                clazz: Class[T]): Source[OutgoingMessage[T], NotUsed] =
     Source.fromGraph(
       new ElasticsearchSourceStage(
@@ -52,31 +51,7 @@ object ElasticsearchSource {
 
     private val mapper = new ObjectMapper()
 
-    override def convert(json: String): ScrollResponse[T] = {
-      val map = mapper.readValue(json, classOf[java.util.Map[String, Object]])
-      val error = map.get("error")
-      if (error != null) {
-        ScrollResponse(Some(error.toString), None)
-      } else {
-        val scrollId = map.get("_scroll_id").asInstanceOf[String]
-        val hits = map
-          .get("hits")
-          .asInstanceOf[java.util.Map[String, Object]]
-          .get("hits")
-          .asInstanceOf[java.util.List[java.util.Map[String, Object]]]
-        val messages = hits.asScala.map { element =>
-          val id = element.get("_id").asInstanceOf[String]
-          val source = element.get("_source").asInstanceOf[java.util.Map[String, Object]]
-          if (clazz.isAssignableFrom(classOf[java.util.Map[String, Object]])) {
-            OutgoingMessage[T](id, source.asInstanceOf[T])
-          } else {
-            val obj = mapper.readValue(mapper.writeValueAsString(source), clazz)
-            OutgoingMessage[T](id, obj)
-          }
-        }
-        ScrollResponse(None, Some(ScrollResult(scrollId, messages)))
-      }
-    }
+    override def convert(json: String): T = mapper.readValue(json, clazz)
   }
 
 }

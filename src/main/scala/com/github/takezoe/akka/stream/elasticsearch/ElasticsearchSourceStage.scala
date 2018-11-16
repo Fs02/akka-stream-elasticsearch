@@ -1,32 +1,24 @@
 package com.github.takezoe.akka.stream.elasticsearch
 
-import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
-
-import akka.stream.{Attributes, Outlet, SourceShape}
 import akka.stream.stage.{GraphStage, GraphStageLogic, OutHandler}
-import org.apache.http.entity.StringEntity
-import org.elasticsearch.client.{Response, ResponseListener, RestClient}
-import spray.json._
-import DefaultJsonProtocol._
+import akka.stream.{Attributes, Outlet, SourceShape}
 import com.github.takezoe.akka.stream.elasticsearch.scaladsl.ElasticsearchSourceSettings
-import org.apache.http.message.BasicHeader
-
-import scala.collection.JavaConverters._
+import org.elasticsearch.action.ActionListener
+import org.elasticsearch.action.search.{SearchRequest, SearchResponse, SearchScrollRequest}
+import org.elasticsearch.client.RestHighLevelClient
+import org.elasticsearch.common.unit.TimeValue
+import org.elasticsearch.search.builder.SearchSourceBuilder
 
 final case class OutgoingMessage[T](id: String, source: T)
 
-case class ScrollResponse[T](error: Option[String], result: Option[ScrollResult[T]])
-case class ScrollResult[T](scrollId: String, messages: Seq[OutgoingMessage[T]])
-
 trait MessageReader[T] {
-  def convert(json: String): ScrollResponse[T]
+  def convert(json: String): T
 }
 
 final class ElasticsearchSourceStage[T](indexName: String,
                                         typeName: String,
                                         query: String,
-                                        client: RestClient,
+                                        client: RestHighLevelClient,
                                         settings: ElasticsearchSourceSettings,
                                         reader: MessageReader[T])
     extends GraphStage[SourceShape[OutgoingMessage[T]]] {
@@ -42,71 +34,57 @@ final class ElasticsearchSourceStage[T](indexName: String,
 sealed class ElasticsearchSourceLogic[T](indexName: String,
                                          typeName: String,
                                          query: String,
-                                         client: RestClient,
+                                         client: RestHighLevelClient,
                                          settings: ElasticsearchSourceSettings,
                                          out: Outlet[OutgoingMessage[T]],
                                          shape: SourceShape[OutgoingMessage[T]],
                                          reader: MessageReader[T])
     extends GraphStageLogic(shape)
-    with ResponseListener
+    with ActionListener[SearchResponse]
     with OutHandler {
 
   private var scrollId: String = null
-  private val responseHandler = getAsyncCallback[Response](handleResponse)
+  private val responseHandler = getAsyncCallback[SearchResponse](handleResponse)
   private val failureHandler = getAsyncCallback[Throwable](handleFailure)
 
   def sendScrollScanRequest(): Unit =
     try {
       if (scrollId == null) {
-        client.performRequestAsync(
-          "POST",
-          s"/$indexName/$typeName/_search",
-          Map("scroll" -> "5m", "sort" -> "_doc").asJava,
-          new StringEntity(s"""{"size": ${settings.bufferSize}, "query": ${query}}"""),
-          this,
-          new BasicHeader("Content-Type", "application/json")
-        )
+        val searchSourceBuilder = new SearchSourceBuilder
+        // searchSourceBuilder.query(matchQuery("title", "Elasticsearch")) TODO: query
+        searchSourceBuilder.size(settings.bufferSize)
+
+        val searchRequest = new SearchRequest(indexName)
+        searchRequest.source(searchSourceBuilder)
+        searchRequest.scroll(TimeValue.timeValueMinutes(5))
+
+        client.searchAsync(searchRequest, this)
       } else {
-        client.performRequestAsync(
-          "POST",
-          s"/_search/scroll",
-          Map[String, String]().asJava,
-          new StringEntity(Map("scroll" -> "5m", "scroll_id" -> scrollId).toJson.toString),
-          this,
-          new BasicHeader("Content-Type", "application/json")
-        )
+        val scrollRequest = new SearchScrollRequest(scrollId)
+        scrollRequest.scroll(TimeValue.timeValueMinutes(5))
+
+        client.searchScrollAsync(scrollRequest, this)
       }
     } catch {
       case ex: Exception => handleFailure(ex)
     }
 
   override def onFailure(exception: Exception) = failureHandler.invoke(exception)
-  override def onSuccess(response: Response) = responseHandler.invoke(response)
+  override def onResponse(response: SearchResponse) = responseHandler.invoke(response)
 
   def handleFailure(ex: Throwable): Unit =
     failStage(ex)
 
-  def handleResponse(res: Response): Unit = {
-    val json = {
-      val out = new ByteArrayOutputStream()
-      try {
-        res.getEntity.writeTo(out)
-        new String(out.toByteArray, StandardCharsets.UTF_8)
-      } finally {
-        out.close()
-      }
+  def handleResponse(res: SearchResponse): Unit =
+    if (res.getFailedShards > 0)
+      failStage(new IllegalStateException(res.getShardFailures.head.getCause))
+    else if (res.getHits.getHits.isEmpty)
+      completeStage()
+    else {
+      scrollId = res.getScrollId
+      val message = res.getHits.getHits.map(hit => OutgoingMessage(hit.getId, reader.convert(hit.getSourceAsString)))
+      emitMultiple(out, message.toIterator)
     }
-
-    reader.convert(json) match {
-      case ScrollResponse(Some(error), _) =>
-        failStage(new IllegalStateException(error))
-      case ScrollResponse(None, Some(result)) if result.messages.isEmpty =>
-        completeStage()
-      case ScrollResponse(_, Some(result)) =>
-        scrollId = result.scrollId
-        emitMultiple(out, result.messages.toIterator)
-    }
-  }
 
   setHandler(out, this)
 

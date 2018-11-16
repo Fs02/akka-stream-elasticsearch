@@ -101,7 +101,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      lclient)
+      client)
       .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
       .runWith(
         ElasticsearchSink.create(
@@ -122,7 +122,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      lclient)
+      client)
     .map(m -> (String) m.source().get("title"))
     .runWith(Sink.seq(), materializer);
 
@@ -151,7 +151,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      lclient,
+      client,
       Book.class)
       .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
       .runWith(
@@ -173,7 +173,7 @@ public class ElasticsearchTest {
       "book",
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
-      lclient,
+      client,
       Book.class)
       .map(m -> m.source().title)
       .runWith(Sink.seq(), materializer);
@@ -203,7 +203,7 @@ public class ElasticsearchTest {
         "book",
         "{\"match_all\": {}}",
         new ElasticsearchSourceSettings().withBufferSize(5),
-        lclient,
+        client,
         Book.class)
         .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
         .via(ElasticsearchFlow.typed(
@@ -228,7 +228,7 @@ public class ElasticsearchTest {
         "book",
         "{\"match_all\": {}}",
         new ElasticsearchSourceSettings(5),
-        lclient,
+        client,
         Book.class)
         .map(m -> m.source().title)
         .runWith(Sink.seq(), materializer);

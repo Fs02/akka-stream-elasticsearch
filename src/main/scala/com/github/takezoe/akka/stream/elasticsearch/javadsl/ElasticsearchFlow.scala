@@ -1,13 +1,14 @@
 package com.github.takezoe.akka.stream.elasticsearch.javadsl
 
+import java.util.{List => JavaList, Map => JavaMap}
+
 import akka.NotUsed
 import akka.stream.scaladsl.Flow
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.elasticsearch.client.{RestClient, RestHighLevelClient}
 import com.github.takezoe.akka.stream.elasticsearch._
+import org.elasticsearch.client.RestHighLevelClient
 
 import scala.collection.JavaConverters._
-import java.util.{List => JavaList, Map => JavaMap}
 
 object ElasticsearchFlow {
 
