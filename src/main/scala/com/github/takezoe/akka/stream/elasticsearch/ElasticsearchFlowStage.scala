@@ -17,18 +17,14 @@ import scala.concurrent.duration._
 
 final case class IncomingMessage[T](id: Option[String], source: T)
 
-trait MessageWriter[T] {
-  def convert(message: T): String
-}
-
 class ElasticsearchFlowStage[T, R](
     indexName: String,
     typeName: String,
     client: RestHighLevelClient,
     settings: ElasticsearchSinkSettings,
-    pusher: Seq[IncomingMessage[T]] => R,
-    writer: MessageWriter[T]
-) extends GraphStage[FlowShape[IncomingMessage[T], Future[R]]] {
+    pusher: Seq[IncomingMessage[T]] => R
+)(implicit writer: T => String)
+    extends GraphStage[FlowShape[IncomingMessage[T], Future[R]]] {
 
   private val in = Inlet[IncomingMessage[T]]("messages")
   private val out = Outlet[Future[R]]("failed")
@@ -112,9 +108,9 @@ class ElasticsearchFlowStage[T, R](
 
         request.add(messages.map {
           case IncomingMessage(Some(id), source) =>
-            new IndexRequest(indexName, typeName, id).source(writer.convert(source), XContentType.JSON)
+            new IndexRequest(indexName, typeName, id).source(writer(source), XContentType.JSON)
           case IncomingMessage(None, source) =>
-            new IndexRequest(indexName, typeName).source(writer.convert(source), XContentType.JSON)
+            new IndexRequest(indexName, typeName).source(writer(source), XContentType.JSON)
         }: _*)
 
         client.bulkAsync(

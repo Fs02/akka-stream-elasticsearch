@@ -11,23 +11,18 @@ import org.elasticsearch.search.builder.SearchSourceBuilder
 
 final case class OutgoingMessage[T](id: String, source: T)
 
-trait MessageReader[T] {
-  def convert(json: String): T
-}
-
 final class ElasticsearchSourceStage[T](indexName: String,
                                         typeName: String,
                                         query: String,
                                         client: RestHighLevelClient,
-                                        settings: ElasticsearchSourceSettings,
-                                        reader: MessageReader[T])
+                                        settings: ElasticsearchSourceSettings)(implicit reader: String => T)
     extends GraphStage[SourceShape[OutgoingMessage[T]]] {
 
   val out: Outlet[OutgoingMessage[T]] = Outlet("ElasticsearchSource.out")
   override val shape: SourceShape[OutgoingMessage[T]] = SourceShape(out)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
-    new ElasticsearchSourceLogic[T](indexName, typeName, query, client, settings, out, shape, reader)
+    new ElasticsearchSourceLogic[T](indexName, typeName, query, client, settings, out, shape)
 
 }
 
@@ -37,8 +32,7 @@ sealed class ElasticsearchSourceLogic[T](indexName: String,
                                          client: RestHighLevelClient,
                                          settings: ElasticsearchSourceSettings,
                                          out: Outlet[OutgoingMessage[T]],
-                                         shape: SourceShape[OutgoingMessage[T]],
-                                         reader: MessageReader[T])
+                                         shape: SourceShape[OutgoingMessage[T]])(implicit reader: String => T)
     extends GraphStageLogic(shape)
     with ActionListener[SearchResponse]
     with OutHandler {
@@ -82,7 +76,7 @@ sealed class ElasticsearchSourceLogic[T](indexName: String,
       completeStage()
     else {
       scrollId = res.getScrollId
-      val message = res.getHits.getHits.map(hit => OutgoingMessage(hit.getId, reader.convert(hit.getSourceAsString)))
+      val message = res.getHits.getHits.map(hit => OutgoingMessage(hit.getId, reader(hit.getSourceAsString)))
       emitMultiple(out, message.toIterator)
     }
 

@@ -8,6 +8,8 @@ import akka.actor.ActorSystem;
 import akka.stream.ActorMaterializer;
 import akka.stream.javadsl.Sink;
 import akka.testkit.JavaTestKit;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.takezoe.akka.stream.elasticsearch.javadsl.*;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
@@ -21,6 +23,7 @@ import org.junit.Test;
 import scala.Some;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.*;
 import java.util.concurrent.CompletionStage;
 
@@ -37,6 +40,26 @@ public class ElasticsearchTest {
   //#define-class
   public static class Book {
     public String title;
+
+    // reader and writer
+    private static ObjectMapper mapper = new ObjectMapper();
+
+    public static String writer(Book message) {
+      try {
+        return mapper.writeValueAsString(message);
+      } catch (JsonProcessingException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+
+    public static Book reader(String json) {
+      try {
+        return mapper.readValue(json, Book.class);
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+
   }
   //#define-class
 
@@ -58,7 +81,6 @@ public class ElasticsearchTest {
     system = ActorSystem.create();
     materializer = ActorMaterializer.create(system);
     //#init-mat
-
 
     register("source", "Akka in Action");
     register("source", "Programming in Scala");
@@ -101,14 +123,14 @@ public class ElasticsearchTest {
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
       client,
-      Book.class)
+      Book::reader)
       .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
       .runWith(
         ElasticsearchSink.create(
           "sink2",
           "book",
           new ElasticsearchSinkSettings().withBufferSize(5),
-          client),
+          client, Book::writer),
         materializer);
     //#run-typed
 
@@ -123,7 +145,7 @@ public class ElasticsearchTest {
       "{\"match_all\": {}}",
       new ElasticsearchSourceSettings().withBufferSize(5),
       client,
-      Book.class)
+      Book::reader)
       .map(m -> m.source().title)
       .runWith(Sink.seq(), materializer);
 
@@ -147,19 +169,21 @@ public class ElasticsearchTest {
   public void flow() throws Exception {
     // Copy source/book to sink3/book through JsObject stream
     //#run-flow
+
     CompletionStage<List<List<IncomingMessage<Book>>>> f1 = ElasticsearchSource.create(
         "source",
         "book",
         "{\"match_all\": {}}",
         new ElasticsearchSourceSettings().withBufferSize(5),
         client,
-        Book.class)
+        Book::reader)
         .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
         .via(ElasticsearchFlow.create(
                 "sink3",
                 "book",
                 new ElasticsearchSinkSettings().withBufferSize(5),
-                client))
+                client,
+                Book::writer))
         .runWith(Sink.seq(), materializer);
     //#run-flow
 
@@ -178,7 +202,7 @@ public class ElasticsearchTest {
         "{\"match_all\": {}}",
         new ElasticsearchSourceSettings(5),
         client,
-        Book.class)
+        Book::reader)
         .map(m -> m.source().title)
         .runWith(Sink.seq(), materializer);
 

@@ -15,9 +15,10 @@ object ElasticsearchSink {
   def create[T](indexName: String,
                 typeName: String,
                 settings: ElasticsearchSinkSettings,
-                client: RestHighLevelClient): akka.stream.javadsl.Sink[IncomingMessage[T], CompletionStage[Done]] =
+                client: RestHighLevelClient,
+                writer: T => String): akka.stream.javadsl.Sink[IncomingMessage[T], CompletionStage[Done]] =
     ElasticsearchFlow
-      .create(indexName, typeName, settings, client)
+      .create(indexName, typeName, settings, client, writer)
       .toMat(Sink.ignore, Keep.right[NotUsed, CompletionStage[Done]])
 
 }

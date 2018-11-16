@@ -14,6 +14,7 @@ import org.apache.http.message.BasicHeader
 import org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner
 import org.elasticsearch.client.{RestClient, RestHighLevelClient}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
+import spray.json._
 import spray.json.DefaultJsonProtocol._
 
 import scala.collection.JavaConverters._
@@ -35,7 +36,11 @@ class ElasticsearchSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
   //#define-class
   case class Book(title: String)
+
+  // spray-json based reader
   implicit val format = jsonFormat1(Book)
+  implicit def writer(message: Book) = message.toJson.toString()
+  implicit def reader(json: String) = json.parseJson.convertTo[Book]
   //#define-class
 
   override def beforeAll() = {
