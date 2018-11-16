@@ -10,27 +10,14 @@ import org.elasticsearch.client.RestHighLevelClient
 object ElasticsearchSink {
 
   /**
-   * Java API: creates a sink based on [[ElasticsearchFlowStage]] that accepts as JsObject
+   * Java API: creates a sink based on [[ElasticsearchFlowStage]]
    */
-  def create(
-      indexName: String,
-      typeName: String,
-      settings: ElasticsearchSinkSettings,
-      client: RestHighLevelClient
-  ): akka.stream.javadsl.Sink[IncomingMessage[java.util.Map[String, Object]], CompletionStage[Done]] =
+  def create[T](indexName: String,
+                typeName: String,
+                settings: ElasticsearchSinkSettings,
+                client: RestHighLevelClient): akka.stream.javadsl.Sink[IncomingMessage[T], CompletionStage[Done]] =
     ElasticsearchFlow
       .create(indexName, typeName, settings, client)
-      .toMat(Sink.ignore, Keep.right[NotUsed, CompletionStage[Done]])
-
-  /**
-   * Java API: creates a sink based on [[ElasticsearchFlowStage]] that accepts as specific type
-   */
-  def typed[T](indexName: String,
-               typeName: String,
-               settings: ElasticsearchSinkSettings,
-               client: RestHighLevelClient): akka.stream.javadsl.Sink[IncomingMessage[T], CompletionStage[Done]] =
-    ElasticsearchFlow
-      .typed(indexName, typeName, settings, client)
       .toMat(Sink.ignore, Keep.right[NotUsed, CompletionStage[Done]])
 
 }

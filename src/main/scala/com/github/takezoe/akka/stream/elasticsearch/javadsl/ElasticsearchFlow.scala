@@ -13,34 +13,9 @@ import scala.collection.JavaConverters._
 object ElasticsearchFlow {
 
   /**
-   * Java API: creates a [[ElasticsearchFlowStage]] that accepts as JsObject
+   * Java API: creates a [[ElasticsearchFlowStage]]
    */
-  def create(
-      indexName: String,
-      typeName: String,
-      settings: ElasticsearchSinkSettings,
-      client: RestHighLevelClient
-  ): akka.stream.javadsl.Flow[IncomingMessage[JavaMap[String, Object]], JavaList[
-    IncomingMessage[JavaMap[String, Object]]
-  ], NotUsed] =
-    Flow
-      .fromGraph(
-        new ElasticsearchFlowStage[JavaMap[String, Object], JavaList[IncomingMessage[JavaMap[String, Object]]]](
-          indexName,
-          typeName,
-          client,
-          settings.asScala,
-          _.asJava,
-          new JacksonWriter[JavaMap[String, Object]]()
-        )
-      )
-      .mapAsync(1)(identity)
-      .asJava
-
-  /**
-   * Java API: creates a [[ElasticsearchFlowStage]] that accepts specific type
-   */
-  def typed[T](
+  def create[T](
       indexName: String,
       typeName: String,
       settings: ElasticsearchSinkSettings,

@@ -11,20 +11,12 @@ import scala.concurrent.Future
 object ElasticsearchSink {
 
   /**
-   * Scala API: creates a sink based on [[ElasticsearchFlowStage]] that accepts as JsObject
+   * Scala API: creates a sink based on [[ElasticsearchFlowStage]]
    */
-  def apply(indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
-      implicit client: RestHighLevelClient
-  ): Sink[IncomingMessage[JsObject], Future[Done]] =
-    ElasticsearchFlow.apply(indexName, typeName, settings).toMat(Sink.ignore)(Keep.right)
-
-  /**
-   * Scala API: creates a sink based on [[ElasticsearchFlowStage]] that accepts as specific type
-   */
-  def typed[T](indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
+  def apply[T](indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
       implicit client: RestHighLevelClient,
       writer: JsonWriter[T]
   ): Sink[IncomingMessage[T], Future[Done]] =
-    ElasticsearchFlow.typed[T](indexName, typeName, settings).toMat(Sink.ignore)(Keep.right)
+    ElasticsearchFlow[T](indexName, typeName, settings).toMat(Sink.ignore)(Keep.right)
 
 }

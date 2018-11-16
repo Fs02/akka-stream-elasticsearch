@@ -9,26 +9,9 @@ import spray.json._
 object ElasticsearchSource {
 
   /**
-   * Scala API: creates a [[ElasticsearchSourceStage]] that consumes as JsObject
+   * Scala API: creates a [[ElasticsearchSourceStage]]
    */
-  def apply(indexName: String, typeName: String, query: String, settings: ElasticsearchSourceSettings)(
-      implicit client: RestHighLevelClient
-  ): Source[OutgoingMessage[JsObject], NotUsed] =
-    Source.fromGraph(
-      new ElasticsearchSourceStage(
-        indexName,
-        typeName,
-        query,
-        client,
-        settings,
-        new SprayJsonReader[JsObject]()(DefaultJsonProtocol.RootJsObjectFormat)
-      )
-    )
-
-  /**
-   * Scala API: creates a [[ElasticsearchSourceStage]] that consumes as specific type
-   */
-  def typed[T](indexName: String, typeName: String, query: String, settings: ElasticsearchSourceSettings)(
+  def apply[T](indexName: String, typeName: String, query: String, settings: ElasticsearchSourceSettings)(
       implicit client: RestHighLevelClient,
       reader: JsonReader[T]
   ): Source[OutgoingMessage[T], NotUsed] =

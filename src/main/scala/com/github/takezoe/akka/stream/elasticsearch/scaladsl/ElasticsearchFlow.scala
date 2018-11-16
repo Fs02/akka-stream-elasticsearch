@@ -9,28 +9,9 @@ import spray.json._
 object ElasticsearchFlow {
 
   /**
-   * Scala API: creates a [[ElasticsearchFlowStage]] that accepts as JsObject
+   * Scala API: creates a [[ElasticsearchFlowStage]]
    */
-  def apply(indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
-      implicit client: RestHighLevelClient
-  ): Flow[IncomingMessage[JsObject], Seq[IncomingMessage[JsObject]], NotUsed] =
-    Flow
-      .fromGraph(
-        new ElasticsearchFlowStage[JsObject, Seq[IncomingMessage[JsObject]]](
-          indexName,
-          typeName,
-          client,
-          settings,
-          identity,
-          new SprayJsonWriter[JsObject]()(DefaultJsonProtocol.RootJsObjectFormat)
-        )
-      )
-      .mapAsync(1)(identity)
-
-  /**
-   * Scala API: creates a [[ElasticsearchFlowStage]] that accepts specific type
-   */
-  def typed[T](indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
+  def apply[T](indexName: String, typeName: String, settings: ElasticsearchSinkSettings)(
       implicit client: RestHighLevelClient,
       writer: JsonWriter[T]
   ): Flow[IncomingMessage[T], Seq[IncomingMessage[T]], NotUsed] =

@@ -91,62 +91,11 @@ public class ElasticsearchTest {
     );
   }
 
-
   @Test
-  public void jsObjectStream() throws Exception {
-    // Copy source/book to sink1/book through JsObject stream
-    //#run-jsobject
-    CompletionStage<Done> f1 = ElasticsearchSource.create(
-      "source",
-      "book",
-      "{\"match_all\": {}}",
-      new ElasticsearchSourceSettings().withBufferSize(5),
-      client)
-      .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
-      .runWith(
-        ElasticsearchSink.create(
-          "sink1",
-          "book",
-          new ElasticsearchSinkSettings().withBufferSize(5),
-          client),
-        materializer);
-    //#run-jsobject
-
-    f1.toCompletableFuture().get();
-
-    flush("sink1");
-
-    // Assert docs in sink1/book
-    CompletionStage<List<String>> f2 = ElasticsearchSource.create(
-      "sink1",
-      "book",
-      "{\"match_all\": {}}",
-      new ElasticsearchSourceSettings().withBufferSize(5),
-      client)
-    .map(m -> (String) m.source().get("title"))
-    .runWith(Sink.seq(), materializer);
-
-    List<String> result = new ArrayList<>(f2.toCompletableFuture().get());
-
-    List<String> expect = Arrays.asList(
-      "Akka Concurrency",
-      "Akka in Action",
-      "Effective Akka",
-      "Learning Scala",
-      "Programming in Scala",
-      "Scala Puzzlers",
-      "Scala for Spark in Production"
-    );
-
-    Collections.sort(result);
-    assertEquals(expect, result);
-  }
-
-  @Test
-  public void typedStream() throws Exception {
+  public void stream() throws Exception {
     // Copy source/book to sink2/book through JsObject stream
     //#run-typed
-    CompletionStage<Done> f1 = ElasticsearchSource.typed(
+    CompletionStage<Done> f1 = ElasticsearchSource.create(
       "source",
       "book",
       "{\"match_all\": {}}",
@@ -155,7 +104,7 @@ public class ElasticsearchTest {
       Book.class)
       .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
       .runWith(
-        ElasticsearchSink.typed(
+        ElasticsearchSink.create(
           "sink2",
           "book",
           new ElasticsearchSinkSettings().withBufferSize(5),
@@ -168,7 +117,7 @@ public class ElasticsearchTest {
     flush("sink2");
 
     // Assert docs in sink2/book
-    CompletionStage<List<String>> f2 = ElasticsearchSource.typed(
+    CompletionStage<List<String>> f2 = ElasticsearchSource.create(
       "sink2",
       "book",
       "{\"match_all\": {}}",
@@ -198,7 +147,7 @@ public class ElasticsearchTest {
   public void flow() throws Exception {
     // Copy source/book to sink3/book through JsObject stream
     //#run-flow
-    CompletionStage<List<List<IncomingMessage<Book>>>> f1 = ElasticsearchSource.typed(
+    CompletionStage<List<List<IncomingMessage<Book>>>> f1 = ElasticsearchSource.create(
         "source",
         "book",
         "{\"match_all\": {}}",
@@ -206,7 +155,7 @@ public class ElasticsearchTest {
         client,
         Book.class)
         .map(m -> new IncomingMessage<>(new Some<String>(m.id()), m.source()))
-        .via(ElasticsearchFlow.typed(
+        .via(ElasticsearchFlow.create(
                 "sink3",
                 "book",
                 new ElasticsearchSinkSettings().withBufferSize(5),
@@ -223,7 +172,7 @@ public class ElasticsearchTest {
     assertEquals(true, result1.get(1).isEmpty());
 
     // Assert docs in sink3/book
-    CompletionStage<List<String>> f2 = ElasticsearchSource.typed(
+    CompletionStage<List<String>> f2 = ElasticsearchSource.create(
         "sink3",
         "book",
         "{\"match_all\": {}}",
